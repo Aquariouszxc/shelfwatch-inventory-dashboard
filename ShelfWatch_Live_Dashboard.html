@@ -389,7 +389,7 @@ body {
       if (r.country) countriesSet.add(r.country);
       
       // Read new reorder_status column (default empty)
-      const reorderStatus = r.reorder_status || '';
+      const reorderStatus = r.status || '';
       const reorderAlert = r.reorder_alert || '';
       // Needs reorder only if alert is REORDER and status is not ORDERED
       const needsReorder = (reorderAlert === 'REORDER') && (reorderStatus !== 'ORDERED');
