@@ -526,35 +526,57 @@ body {
 
   function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, function(m){ if(m === '&') return '&amp;'; if(m === '<') return '&lt;'; if(m === '>') return '&gt;'; return m;}); }
 
-  // Reorder logic (event handler)
-  async function reorderHandler(e) {
+  // Reorder logic with form-urlencoded (no CORS issues)
+async function reorderHandler(e) {
     const btn = e.currentTarget;
     const pid = btn.getAttribute('data-pid');
     const pname = btn.getAttribute('data-pname');
     const category = btn.getAttribute('data-cat');
     const reorderPoint = parseInt(btn.getAttribute('data-reorderpt')) || 0;
     const currentStock = parseInt(btn.getAttribute('data-stock')) || 0;
-    if (!CONFIG.APPS_SCRIPT_URL) { showToast('Reorder URL not set. Enable Apps Script to log reorder.', 'error'); return; }
+    
+    if (!CONFIG.APPS_SCRIPT_URL) {
+        showToast('Reorder URL not set. Please configure APPS_SCRIPT_URL.', 'error');
+        return;
+    }
+    
     btn.disabled = true;
     btn.textContent = 'Sending…';
+    
     const suggestedQty = Math.max(reorderPoint * 2 - currentStock, reorderPoint);
+    
+    // Build URL-encoded body
+    const payload = new URLSearchParams({
+        timestamp: new Date().toISOString(),
+        product_id: pid,
+        product_name: pname,
+        category: category,
+        current_stock: currentStock,
+        reorder_point: reorderPoint,
+        suggested_qty: Math.round(suggestedQty),
+        status: 'REQUESTED'
+    });
+    
     try {
-      await fetch(CONFIG.APPS_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ timestamp: new Date().toISOString(), product_id: pid, product_name: pname, category, current_stock: currentStock, reorder_point: reorderPoint, suggested_qty: Math.round(suggestedQty), status: 'REQUESTED' })
-      });
-      showToast(`Reorder request sent for ${pname}`, 'success');
-      btn.textContent = '✓ Sent';
-      btn.style.background = 'var(--green-100)';
-      btn.style.color = 'var(--green-600)';
+        await fetch(CONFIG.APPS_SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: payload.toString()
+        });
+        // With no-cors we can't read the response, but the request was sent.
+        showToast(`✅ Reorder request sent for ${pname}`, 'success');
+        btn.textContent = '✓ Sent';
+        btn.style.background = 'var(--green-100)';
+        btn.style.color = 'var(--green-600)';
+        btn.disabled = true; // keep disabled
     } catch (err) {
-      showToast(`Reorder failed: ${err.message}`, 'error');
-      btn.disabled = false;
-      btn.textContent = 'Reorder';
+        console.error('Reorder error:', err);
+        showToast(`❌ Reorder failed: ${err.message}`, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Reorder';
     }
-  }
+}
 
   // Filters and pagination events
   document.getElementById('categoryFilter').addEventListener('change', e => { activeCategory = e.target.value; currentPage = 1; renderTable(); });
