@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShelfWatch — Multinational Ethnic Inventory Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+/* ===== RESET & ROOT ===== */
+:root {
+  --bg: #F7F3ED;
+  --bg-card: #FFFFFF;
+  --bg-hero: #FFF8EE;
+  --ink: #1A1A1A;
+  --ink-soft: #6B6B6B;
+  --ink-muted: #9A9A9A;
+  --border: #E8E2D8;
+  --border-light: #F0EBE3;
+  --orange-600: #D97706;
+  --orange-500: #F59E0B;
+  --orange-400: #FBBF24;
+  --orange-300: #FCD34D;
+  --orange-200: #FDE68A;
+  --orange-100: #FEF3C7;
+  --orange-50: #FFFBEB;
+  --green-600: #059669;
+  --green-500: #10B981;
+  --green-100: #D1FAE5;
+  --green-50: #ECFDF5;
+  --red-600: #DC2626;
+  --red-500: #EF4444;
+  --red-100: #FEE2E2;
+  --red-50: #FEF2F2;
+  --blue-500: #3B82F6;
+  --blue-100: #DBEAFE;
+  --purple-500: #8B5CF6;
+  --purple-100: #EDE9FE;
+  --radius: 16px;
+  --radius-sm: 10px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.06), 0 2px 4px rgba(0,0,0,0.04);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'DM Sans', -apple-system, sans-serif;
+  font-weight: 400;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* ===== NAVBAR ===== */
+.navbar {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.navbar-logo {
+  width: 28px; height: 28px;
+  background: var(--orange-500);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+}
+.navbar-logo svg { width: 16px; height: 16px; fill: #fff; }
+.navbar-brand {
+  font-weight: 600; font-size: 14px; color: var(--ink);
+}
+.navbar-brand span { color: var(--ink-muted); font-weight: 400; font-size: 13px; margin-left: 4px; }
+.navbar-center { display: flex; gap: 6px; }
+.nav-link {
+  font-size: 13.5px; font-weight: 500; color: var(--ink-muted);
+  padding: 8px 14px; border-radius: 8px; cursor: pointer;
+  transition: all 0.15s; text-decoration: none;
+}
+.nav-link:hover { color: var(--ink); background: var(--bg); }
+.nav-link.active { color: var(--ink); background: var(--orange-50); }
+.navbar-right { display: flex; align-items: center; gap: 10px; }
+.btn-refresh {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: var(--orange-500); color: #fff;
+  font-size: 13px; font-weight: 600; font-family: inherit;
+  padding: 8px 16px; border-radius: 10px; border: none;
+  cursor: pointer; transition: all 0.15s;
+}
+.btn-refresh:hover { background: var(--orange-600); transform: translateY(-1px); }
+.btn-refresh svg { width: 14px; height: 14px; fill: currentColor; }
+.btn-refresh.loading svg { animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== STATUS BAR ===== */
+.status-bar {
+  padding: 8px 32px;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--ink-muted);
+}
+.status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ink-muted); flex-shrink: 0;
+}
+.status-dot.live {
+  background: var(--green-500);
+  box-shadow: 0 0 0 3px rgba(16,185,129,0.2);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0%,100% { box-shadow: 0 0 0 3px rgba(16,185,129,0.2); }
+  50% { box-shadow: 0 0 0 6px rgba(16,185,129,0.08); }
+}
+.status-dot.loading { background: var(--orange-400); }
+.status-dot.error { background: var(--red-500); }
+
+/* ===== MAIN CONTENT ===== */
+.main { max-width: 1200px; margin: 0 auto; padding: 24px 32px 64px; }
+
+/* ===== HERO ===== */
+.hero {
+  background: var(--bg-hero);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 36px 40px;
+  margin-bottom: 24px;
+  position: relative; overflow: hidden;
+}
+.hero::after {
+  content: '';
+  position: absolute; right: -20px; top: -20px;
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, var(--orange-200) 0%, transparent 70%);
+  opacity: 0.4; pointer-events: none;
+}
+.hero-eyebrow {
+  font-size: 12px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--orange-600); margin-bottom: 8px;
+}
+.hero-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 32px; font-weight: 400; line-height: 1.15;
+  color: var(--ink); margin-bottom: 8px;
+}
+.hero-sub { font-size: 14px; color: var(--ink-soft); max-width: 500px; }
+
+/* ===== KPI ROW ===== */
+.kpi-row {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 16px; margin-bottom: 24px;
+}
+.kpi-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px 22px;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  box-shadow: var(--shadow-sm); transition: all 0.2s;
+}
+.kpi-card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.kpi-label {
+  font-size: 12.5px; font-weight: 500; color: var(--ink-muted); margin-bottom: 6px;
+}
+.kpi-value {
+  font-family: 'DM Serif Display', serif;
+  font-size: 32px; font-weight: 400; color: var(--ink); line-height: 1.1;
+}
+.kpi-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.kpi-icon svg { width: 20px; height: 20px; }
+.kpi-icon.orange { background: var(--orange-100); }
+.kpi-icon.orange svg { fill: var(--orange-500); }
+.kpi-icon.red { background: var(--red-100); }
+.kpi-icon.red svg { fill: var(--red-500); }
+.kpi-icon.green { background: var(--green-100); }
+.kpi-icon.green svg { fill: var(--green-500); }
+.kpi-icon.purple { background: var(--purple-100); }
+.kpi-icon.purple svg { fill: var(--purple-500); }
+
+/* ===== SECTION CARD ===== */
+.section-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 28px 28px 24px;
+  box-shadow: var(--shadow-sm); margin-bottom: 24px;
+}
+.section-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 20px;
+}
+.section-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 20px; font-weight: 400; color: var(--ink);
+}
+.section-sub { font-size: 13px; color: var(--ink-muted); margin-top: 3px; }
+.badge-legend {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--ink-muted);
+}
+.badge-dot {
+  width: 10px; height: 10px; border-radius: 50%; background: var(--orange-400);
+}
+
+/* ===== LOW STOCK GRID ===== */
+.low-stock-grid {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px;
+}
+.stock-item {
+  border: 1px solid var(--border-light); border-radius: var(--radius-sm);
+  overflow: hidden; text-align: center; transition: all 0.2s;
+}
+.stock-item:hover { border-color: var(--orange-400); box-shadow: var(--shadow-sm); }
+.stock-thumb {
+  height: 90px; background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.stock-thumb-icon {
+  width: 48px; height: 48px; border-radius: 12px;
+  background: linear-gradient(135deg, var(--orange-100), var(--orange-50));
+  display: flex; align-items: center; justify-content: center;
+}
+.stock-thumb-icon svg { width: 22px; height: 22px; fill: var(--orange-500); }
+.stock-badge {
+  position: absolute; bottom: -12px; left: 50%; transform: translateX(-50%);
+  background: var(--orange-400); color: #fff;
+  font-size: 13px; font-weight: 700;
+  min-width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 8px; padding: 0 8px;
+}
+.stock-badge.critical { background: var(--red-500); }
+.stock-name {
+  padding: 18px 10px 12px;
+  font-size: 12.5px; font-weight: 500; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ===== PRODUCTS TABLE ===== */
+.table-controls { display: flex; align-items: center; gap: 12px; }
+.filter-select {
+  font-family: inherit; font-size: 13px;
+  padding: 8px 32px 8px 12px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--bg-card);
+  color: var(--ink); cursor: pointer; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239A9A9A' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+.filter-select:focus { outline: none; border-color: var(--orange-400); }
+.search-input {
+  font-family: inherit; font-size: 13px;
+  padding: 8px 12px 8px 32px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--bg-card);
+  color: var(--ink); width: 200px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='%239A9A9A' viewBox='0 0 24 24'%3E%3Cpath d='M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: left 10px center;
+}
+.search-input:focus { outline: none; border-color: var(--orange-400); }
+
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table thead th {
+  font-size: 11.5px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--ink-muted);
+  padding: 12px 10px; border-bottom: 1.5px solid var(--border);
+  text-align: left; white-space: nowrap;
+}
+.data-table tbody tr {
+  border-bottom: 1px solid var(--border-light); transition: background 0.1s;
+}
+.data-table tbody tr:hover { background: var(--orange-50); }
+.data-table tbody tr:last-child { border-bottom: none; }
+.data-table tbody td {
+  font-size: 13.5px; padding: 14px 10px; vertical-align: middle;
+}
+.product-cell { display: flex; align-items: center; gap: 10px; }
+.product-icon-sm {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: var(--orange-50);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.product-icon-sm svg { width: 18px; height: 18px; fill: var(--orange-400); }
+.product-name-text { font-weight: 500; }
+.td-sku { color: var(--ink-muted); font-size: 12.5px; }
+.td-num { font-weight: 500; font-variant-numeric: tabular-nums; }
+
+.status-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 12px; border-radius: 20px;
+  font-size: 12px; font-weight: 600;
+}
+.status-pill.ok { background: var(--green-100); color: var(--green-600); }
+.status-pill.reorder { background: var(--red-100); color: var(--red-600); }
+
+.btn-action {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: inherit; font-size: 12px; font-weight: 600;
+  padding: 6px 12px; border-radius: 8px; border: none;
+  cursor: pointer; transition: all 0.15s;
+}
+.btn-action.update { background: var(--orange-100); color: var(--orange-600); }
+.btn-action.update:hover { background: var(--orange-200); }
+.btn-action.reorder-btn { background: var(--red-100); color: var(--red-600); }
+.btn-action.reorder-btn:hover { background: var(--red-100); color: var(--red-500); }
+.btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
+.actions-cell { display: flex; gap: 6px; }
+
+/* pagination */
+.pagination {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 18px; padding-top: 14px;
+  border-top: 1px solid var(--border-light);
+}
+.page-info { font-size: 13px; color: var(--ink-muted); }
+.page-btns { display: flex; gap: 4px; }
+.page-btn {
+  width: 32px; height: 32px; border-radius: 8px;
+  border: 1px solid var(--border); background: var(--bg-card);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 13px; font-weight: 500;
+  color: var(--ink-soft); transition: all 0.15s;
+}
+.page-btn:hover { border-color: var(--orange-400); color: var(--ink); }
+.page-btn.active { background: var(--orange-500); color: #fff; border-color: var(--orange-500); }
+.page-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ===== TOAST ===== */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--ink); color: #fff;
+  padding: 14px 20px; border-radius: 12px;
+  font-size: 13.5px; font-weight: 500;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  transform: translateY(100px); opacity: 0;
+  transition: all 0.3s ease; z-index: 200;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.success { background: #065F46; }
+.toast.error { background: #991B1B; }
+
+/* ===== FOOTER ===== */
+.footer {
+  background: var(--bg-card); border-top: 1px solid var(--border);
+  padding: 20px 32px; display: flex; align-items: center; justify-content: space-between;
+}
+.footer-left { display: flex; align-items: center; gap: 10px; }
+.footer-logo {
+  width: 32px; height: 32px; background: var(--ink);
+  border-radius: 8px; display: flex; align-items: center; justify-content: center;
+}
+.footer-logo svg { width: 18px; height: 18px; fill: #fff; }
+.footer-brand { font-weight: 600; font-size: 14px; }
+.footer-sub { font-size: 12px; color: var(--ink-muted); }
+.footer-right { font-size: 12.5px; color: var(--ink-muted); }
+
+/* ===== LOADING ===== */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg) 25%, var(--border-light) 50%, var(--bg) 75%);
+  background-size: 200% 100%; animation: shimmer 1.5s infinite;
+  border-radius: 6px; display: inline-block;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 900px) {
+  .kpi-row { grid-template-columns: repeat(2, 1fr); }
+  .low-stock-grid { grid-template-columns: repeat(3, 1fr); }
+  .main { padding: 16px; }
+  .table-controls { flex-wrap: wrap; }
+}
+@media (max-width: 600px) {
+  .kpi-row { grid-template-columns: 1fr; }
+  .low-stock-grid { grid-template-columns: repeat(2, 1fr); }
+  .navbar { padding: 0 16px; }
+  .navbar-center { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== NAVBAR ===== -->
+<nav class="navbar">
+  <div class="navbar-left">
+    <div class="navbar-logo">
+      <svg viewBox="0 0 24 24"><path d="M3 13h1v7c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-7h1a1 1 0 0 0 .7-1.7l-9-9a1 1 0 0 0-1.4 0l-9 9A1 1 0 0 0 3 13zm7 7v-5h4v5h-4zm2-15.6 7.2 7.2H4.8L12 4.4z"/></svg>
+    </div>
+    <div class="navbar-brand">ShelfWatch <span>Inventory made simple for your shop</span></div>
+  </div>
+  <div class="navbar-center">
+    <a class="nav-link active" href="#">Dashboard</a>
+  </div>
+  <div class="navbar-right">
+    <button class="btn-refresh" id="btnRefresh" onclick="loadData()">
+      <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+      Refresh Data
+    </button>
+  </div>
+</nav>
+
+<!-- ===== STATUS BAR ===== -->
+<div class="status-bar">
+  <div class="status-dot" id="statusDot"></div>
+  <span id="statusText">Connecting to Google Sheets…</span>
+  <span id="statusTime" style="margin-left:auto;"></span>
+</div>
+
+<!-- ===== MAIN ===== -->
+<div class="main">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-eyebrow">Inventory Dashboard</div>
+    <div class="hero-title">Welcome back to your stockroom</div>
+    <div class="hero-sub">Keep an eye on every jar, bag, and bottle — from jasmine rice to fish sauce. Data loads live from Google Sheets.</div>
+  </div>
+
+  <!-- KPI ROW -->
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div>
+        <div class="kpi-label">Total Products</div>
+        <div class="kpi-value" data-id="total_products"><span class="skeleton" style="width:48px;height:32px;">&nbsp;</span></div>
+      </div>
+      <div class="kpi-icon orange">
+        <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10h2v2H6zm0 4h8v2H6zm10-4h2v6h-2zm-6 0h4v2h-4z"/></svg>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div>
+        <div class="kpi-label">Low Stock Items</div>
+        <div class="kpi-value" data-id="low_stock_count" style="color:var(--red-500);"><span class="skeleton" style="width:36px;height:32px;">&nbsp;</span></div>
+      </div>
+      <div class="kpi-icon red">
+        <svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div>
+        <div class="kpi-label">Healthy Stock</div>
+        <div class="kpi-value" data-id="healthy_stock" style="color:var(--green-600);"><span class="skeleton" style="width:36px;height:32px;">&nbsp;</span></div>
+      </div>
+      <div class="kpi-icon green">
+        <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+      </div>
+    </div>
+    <div class="kpi-card">
+      <div>
+        <div class="kpi-label">Categories</div>
+        <div class="kpi-value" data-id="total_categories"><span class="skeleton" style="width:28px;height:32px;">&nbsp;</span></div>
+      </div>
+      <div class="kpi-icon purple">
+        <svg viewBox="0 0 24 24"><path d="M12 2l-5.5 9h11L12 2zm0 3.84L13.93 9h-3.87L12 5.84zM17.5 13c-2.49 0-4.5 2.01-4.5 4.5s2.01 4.5 4.5 4.5 4.5-2.01 4.5-4.5-2.01-4.5-4.5-4.5zm0 7a2.5 2.5 0 0 1 0-5 2.5 2.5 0 0 1 0 5zM3 21.5h8v-8H3v8zm2-6h4v4H5v-4z"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOP 5 LOWEST STOCK -->
+  <div class="section-card">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Top 5 Lowest-Stock Items</div>
+        <div class="section-sub">Critical shortages to address first</div>
+      </div>
+      <div class="badge-legend">
+        <div class="badge-dot"></div>
+        Units in stock
+      </div>
+    </div>
+    <div class="low-stock-grid" id="lowStockGrid">
+      <div class="stock-item"><div class="stock-thumb"><div class="skeleton" style="width:48px;height:48px;border-radius:12px;">&nbsp;</div></div><div class="stock-name"><span class="skeleton" style="width:80px;height:14px;">&nbsp;</span></div></div>
+      <div class="stock-item"><div class="stock-thumb"><div class="skeleton" style="width:48px;height:48px;border-radius:12px;">&nbsp;</div></div><div class="stock-name"><span class="skeleton" style="width:80px;height:14px;">&nbsp;</span></div></div>
+      <div class="stock-item"><div class="stock-thumb"><div class="skeleton" style="width:48px;height:48px;border-radius:12px;">&nbsp;</div></div><div class="stock-name"><span class="skeleton" style="width:80px;height:14px;">&nbsp;</span></div></div>
+      <div class="stock-item"><div class="stock-thumb"><div class="skeleton" style="width:48px;height:48px;border-radius:12px;">&nbsp;</div></div><div class="stock-name"><span class="skeleton" style="width:80px;height:14px;">&nbsp;</span></div></div>
+      <div class="stock-item"><div class="stock-thumb"><div class="skeleton" style="width:48px;height:48px;border-radius:12px;">&nbsp;</div></div><div class="stock-name"><span class="skeleton" style="width:80px;height:14px;">&nbsp;</span></div></div>
+    </div>
+  </div>
+
+  <!-- ALL PRODUCTS TABLE -->
+  <div class="section-card">
+    <div class="section-header">
+      <div>
+        <div class="section-title">All Products</div>
+        <div class="section-sub">Manage stock levels, edit details, or reorder low items</div>
+      </div>
+      <div class="table-controls">
+        <input type="text" class="search-input" id="searchInput" placeholder="Search products…">
+        <select class="filter-select" id="categoryFilter">
+          <option value="">All Categories</option>
+        </select>
+        <select class="filter-select" id="countryFilter">
+          <option value="">All Countries</option>
+        </select>
+      </div>
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Product Name</th>
+          <th>SKU</th>
+          <th>Category</th>
+          <th>Stock</th>
+          <th>Safety</th>
+          <th>Reorder Pt</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="productTableBody">
+        <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--ink-muted);">Loading from Google Sheets…</td></tr>
+      </tbody>
+    </table>
+    <div class="pagination" id="pagination" style="display:none;">
+      <div class="page-info" id="pageInfo"></div>
+      <div class="page-btns" id="pageBtns"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== FOOTER ===== -->
+<footer class="footer">
+  <div class="footer-left">
+    <div class="footer-logo">
+      <svg viewBox="0 0 24 24"><path d="M3 13h1v7c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-7h1a1 1 0 0 0 .7-1.7l-9-9a1 1 0 0 0-1.4 0l-9 9A1 1 0 0 0 3 13zm7 7v-5h4v5h-4zm2-15.6 7.2 7.2H4.8L12 4.4z"/></svg>
+    </div>
+    <div>
+      <div class="footer-brand">ShelfWatch</div>
+      <div class="footer-sub">Built for ethnic grocery retailers</div>
+    </div>
+  </div>
+  <div class="footer-right">&copy; 2026 ShelfWatch. All rights reserved.</div>
+</footer>
+
+<!-- ===== TOAST NOTIFICATION ===== -->
+<div class="toast" id="toast"></div>
+
+<!-- ===== DATA ENGINE ===== -->
+<script>
+(function() {
+  'use strict';
+
+  // ==================== CONFIG ====================
+  // IMPORTANT: Replace these with your actual values
+  var CONFIG = {
+    // Your Google Spreadsheet ID
+    SHEET_ID: '1-RdujYHUyYfo_ttc0nknsij9JWK4KSzzu1gPgmBHacc',
+
+    // Google Apps Script Web App URL for writing reorder data
+    // Set this after deploying the Apps Script (see instructions below)
+    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzxI_DXnyLjlyoigPdpluZ0EvmBOMDba4RhiXSXdnElaVg2s_GTzv05Av-NIxaxaqOF/exec'
+  };
+
+  // ==================== STATE ====================
+  var allProducts = [];
+  var currentPage = 1;
+  var pageSize = 10;
+  var activeCategory = '';
+  var activeCountry = '';
+  var searchQuery = '';
+
+  // ==================== HELPERS ====================
+  function el(id) { return document.querySelector('[data-id="'+id+'"]'); }
+
+  function fmtNum(v) {
+    var n = parseFloat(v);
+    if (isNaN(n)) return '—';
+    return Math.round(n).toLocaleString();
+  }
+
+  function setStatus(state, msg) {
+    var dot = document.getElementById('statusDot');
+    var txt = document.getElementById('statusText');
+    var ts = document.getElementById('statusTime');
+    dot.className = 'status-dot ' + state;
+    txt.textContent = msg;
+    if (state === 'live') {
+      ts.textContent = 'Updated ' + new Date().toLocaleTimeString();
+    }
+  }
+
+  function showToast(msg, type) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast ' + (type || '') + ' show';
+    setTimeout(function() { t.className = 'toast'; }, 3500);
+  }
+
+  // ==================== GOOGLE SHEETS READER ====================
+  // Uses the Google Visualization API (gviz) to read published sheets as JSON
+  // This requires the sheet to be "Published to web"
+
+  function fetchSheet(sheetName) {
+    return new Promise(function(resolve, reject) {
+      // Build the gviz URL
+      var url = 'https://docs.google.com/spreadsheets/d/' +
+        CONFIG.SHEET_ID +
+        '/gviz/tq?tqx=out:json&sheet=' +
+        encodeURIComponent(sheetName);
+
+      fetch(url)
+        .then(function(res) { return res.text(); })
+        .then(function(text) {
+          // gviz wraps response in google.visualization.Query.setResponse({...})
+          // We need to extract the JSON inside
+          var jsonStr = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]+)\);?/);
+          if (!jsonStr || !jsonStr[1]) {
+            throw new Error('Could not parse gviz response for sheet: ' + sheetName);
+          }
+          var data = JSON.parse(jsonStr[1]);
+          if (data.status === 'error') {
+            throw new Error(data.errors[0].detailed_message || 'Sheet query error');
+          }
+
+          // Convert gviz table format to array of objects
+          var cols = data.table.cols.map(function(c) { return c.label || c.id; });
+          var rows = data.table.rows.map(function(r) {
+            var obj = {};
+            r.c.forEach(function(cell, i) {
+              if (cell && cell.v !== null && cell.v !== undefined) {
+                obj[cols[i]] = cell.v;
+              } else {
+                obj[cols[i]] = null;
+              }
+            });
+            return obj;
+          });
+
+          resolve(rows);
+        })
+        .catch(reject);
+    });
+  }
+
+  // ==================== LOAD DATA ====================
+  function loadData() {
+    var btn = document.getElementById('btnRefresh');
+    btn.classList.add('loading');
+    setStatus('loading', 'Fetching data from Google Sheets…');
+
+    fetchSheet('product_master')
+      .then(function(pmRows) {
+        processProductData(pmRows);
+        setStatus('live', 'LIVE — Connected to Google Sheets');
+        btn.classList.remove('loading');
+        showToast('Dashboard updated from Google Sheets', 'success');
+      })
+      .catch(function(err) {
+        console.error('Load error:', err);
+        setStatus('error', 'ERROR — ' + err.message);
+        btn.classList.remove('loading');
+        showToast('Failed to load data. Check that the sheet is published.', 'error');
+      });
+  }
+
+  // ==================== PROCESS DATA ====================
+  function processProductData(pmRows) {
+    var productMap = {};
+    var categoriesSet = {};
+    var countriesSet = {};
+    var reorderCount = 0;
+
+    pmRows.forEach(function(r) {
+      var pid = r.product_id;
+      if (!pid) return;
+
+      categoriesSet[r.category] = true;
+      countriesSet[r.country] = true;
+      if (r.reorder_alert === 'REORDER') reorderCount++;
+
+      if (!productMap[pid]) {
+        productMap[pid] = {
+          id: pid,
+          name: r.product_name,
+          cuisine: r.cuisine,
+          category: r.category,
+          total_stock: 0,
+          total_safety: 0,
+          total_reorder_point: 0,
+          total_sold: 0,
+          shops: [],
+          has_reorder: false
+        };
+      }
+      var p = productMap[pid];
+      var stock = parseFloat(r.current_stock) || 0;
+      p.total_stock += stock;
+      p.total_safety += parseFloat(r.safety_stock_qty) || 0;
+      p.total_reorder_point += parseFloat(r.reorder_point) || 0;
+      p.total_sold += parseFloat(r.total_units_sold) || 0;
+      if (r.reorder_alert === 'REORDER') p.has_reorder = true;
+      p.shops.push({
+        shop: r.shop_id,
+        country: r.country,
+        stock: stock,
+        alert: r.reorder_alert
+      });
+    });
+
+    allProducts = Object.values(productMap);
+    var totalProducts = allProducts.length;
+    var totalCategories = Object.keys(categoriesSet).length;
+    var lowStockProducts = allProducts.filter(function(p) { return p.has_reorder; });
+    var healthyProducts = totalProducts - lowStockProducts.length;
+
+    // Update KPIs
+    el('total_products').textContent = totalProducts;
+    el('low_stock_count').textContent = reorderCount;
+    el('healthy_stock').textContent = healthyProducts;
+    el('total_categories').textContent = totalCategories;
+
+    // Populate filters
+    var catFilter = document.getElementById('categoryFilter');
+    var savedCat = catFilter.value;
+    catFilter.innerHTML = '<option value="">All Categories</option>';
+    Object.keys(categoriesSet).sort().forEach(function(c) {
+      catFilter.innerHTML += '<option value="'+c+'"' + (c===savedCat?' selected':'') + '>'+c+'</option>';
+    });
+
+    var cntFilter = document.getElementById('countryFilter');
+    var savedCnt = cntFilter.value;
+    cntFilter.innerHTML = '<option value="">All Countries</option>';
+    Object.keys(countriesSet).sort().forEach(function(c) {
+      cntFilter.innerHTML += '<option value="'+c+'"' + (c===savedCnt?' selected':'') + '>'+c+'</option>';
+    });
+
+    // Low stock grid — shop-level items sorted by lowest stock
+    var shopLevelItems = pmRows
+      .filter(function(r) { return r.reorder_alert === 'REORDER'; })
+      .map(function(r) {
+        return {
+          name: r.product_name,
+          stock: parseFloat(r.current_stock) || 0,
+          shop: r.shop_id,
+          country: r.country
+        };
+      })
+      .sort(function(a, b) { return a.stock - b.stock; })
+      .slice(0, 5);
+
+    var grid = document.getElementById('lowStockGrid');
+    grid.innerHTML = '';
+    shopLevelItems.forEach(function(item) {
+      var isCritical = item.stock <= 25;
+      grid.innerHTML += '<div class="stock-item">' +
+        '<div class="stock-thumb">' +
+          '<div class="stock-thumb-icon"><svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12z"/></svg></div>' +
+          '<div class="stock-badge ' + (isCritical ? 'critical' : '') + '">' + Math.round(item.stock) + '</div>' +
+        '</div>' +
+        '<div class="stock-name" title="' + item.name + ' (' + item.country + ')">' + item.name + '</div>' +
+      '</div>';
+    });
+
+    // Render table
+    currentPage = 1;
+    renderTable();
+  }
+
+  // ==================== TABLE RENDER ====================
+  function getFilteredProducts() {
+    return allProducts.filter(function(p) {
+      if (activeCategory && p.category !== activeCategory) return false;
+      if (activeCountry) {
+        var hasCountry = p.shops.some(function(s) { return s.country === activeCountry; });
+        if (!hasCountry) return false;
+      }
+      if (searchQuery) {
+        var q = searchQuery.toLowerCase();
+        if (p.name.toLowerCase().indexOf(q) === -1 &&
+            p.id.toLowerCase().indexOf(q) === -1 &&
+            p.category.toLowerCase().indexOf(q) === -1 &&
+            p.cuisine.toLowerCase().indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderTable() {
+    var filtered = getFilteredProducts();
+    var totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
+
+    var start = (currentPage - 1) * pageSize;
+    var page = filtered.slice(start, start + pageSize);
+
+    var tbody = document.getElementById('productTableBody');
+    if (page.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--ink-muted);">No products match your filters</td></tr>';
+    } else {
+      tbody.innerHTML = page.map(function(p) {
+        var statusClass = p.has_reorder ? 'reorder' : 'ok';
+        var statusLabel = p.has_reorder ? 'Reorder' : 'OK';
+        var reorderBtnHtml = p.has_reorder
+          ? '<button class="btn-action reorder-btn" onclick="window._reorder(\'' + p.id + '\',\'' + encodeURIComponent(p.name) + '\',\'' + p.category + '\',' + Math.round(p.total_reorder_point) + ',' + Math.round(p.total_stock) + ')">Reorder</button>'
+          : '';
+
+        return '<tr>' +
+          '<td><div class="product-cell">' +
+            '<div class="product-icon-sm"><svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12z"/></svg></div>' +
+            '<span class="product-name-text">' + p.name + '</span>' +
+          '</div></td>' +
+          '<td class="td-sku">' + p.id + '</td>' +
+          '<td>' + p.category + '</td>' +
+          '<td class="td-num">' + fmtNum(p.total_stock) + '</td>' +
+          '<td class="td-num">' + fmtNum(p.total_safety) + '</td>' +
+          '<td class="td-num">' + fmtNum(p.total_reorder_point) + '</td>' +
+          '<td><span class="status-pill ' + statusClass + '">' + statusLabel + '</span></td>' +
+          '<td><div class="actions-cell">' +
+            '<button class="btn-action update">Update</button>' +
+            reorderBtnHtml +
+          '</div></td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    // Pagination
+    var pag = document.getElementById('pagination');
+    var info = document.getElementById('pageInfo');
+    var btns = document.getElementById('pageBtns');
+
+    if (filtered.length > 0) {
+      pag.style.display = 'flex';
+      var end = Math.min(start + pageSize, filtered.length);
+      info.textContent = 'Showing ' + (start+1) + '\u2013' + end + ' of ' + filtered.length;
+
+      var html = '';
+      html += '<button class="page-btn" data-page="prev" ' + (currentPage<=1?'disabled':'') + '>\u2039</button>';
+      for (var i = 1; i <= totalPages; i++) {
+        html += '<button class="page-btn ' + (i===currentPage?'active':'') + '" data-page="'+i+'">'+i+'</button>';
+      }
+      html += '<button class="page-btn" data-page="next" ' + (currentPage>=totalPages?'disabled':'') + '>\u203A</button>';
+      btns.innerHTML = html;
+    } else {
+      pag.style.display = 'none';
+    }
+  }
+
+  // ==================== REORDER (WRITE TO GOOGLE SHEETS) ====================
+  window._reorder = function(productId, encodedName, category, reorderPoint, currentStock) {
+    var productName = decodeURIComponent(encodedName);
+    var suggestedQty = Math.max(reorderPoint * 2 - currentStock, reorderPoint);
+
+    if (!CONFIG.APPS_SCRIPT_URL) {
+      showToast('Apps Script URL not configured. See setup instructions.', 'error');
+      return;
+    }
+
+    // Disable the button that was clicked
+    event.target.disabled = true;
+    event.target.textContent = 'Sending…';
+
+    var payload = {
+      timestamp: new Date().toISOString(),
+      product_id: productId,
+      product_name: productName,
+      category: category,
+      current_stock: currentStock,
+      reorder_point: reorderPoint,
+      suggested_qty: Math.round(suggestedQty),
+      status: 'PENDING'
+    };
+
+    fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(function() {
+      // no-cors means we can't read the response, but the request was sent
+      showToast('Reorder request sent for ' + productName, 'success');
+      event.target.textContent = 'Sent \u2713';
+      event.target.style.background = 'var(--green-100)';
+      event.target.style.color = 'var(--green-600)';
+    })
+    .catch(function(err) {
+      console.error('Reorder error:', err);
+      showToast('Failed to send reorder. Try again.', 'error');
+      event.target.disabled = false;
+      event.target.textContent = 'Reorder';
+    });
+  };
+
+  // ==================== EVENT LISTENERS ====================
+  document.getElementById('categoryFilter').addEventListener('change', function(e) {
+    activeCategory = e.target.value;
+    currentPage = 1;
+    renderTable();
+  });
+  document.getElementById('countryFilter').addEventListener('change', function(e) {
+    activeCountry = e.target.value;
+    currentPage = 1;
+    renderTable();
+  });
+  document.getElementById('searchInput').addEventListener('input', function(e) {
+    searchQuery = e.target.value;
+    currentPage = 1;
+    renderTable();
+  });
+  document.getElementById('pageBtns').addEventListener('click', function(e) {
+    var btn = e.target.closest('.page-btn');
+    if (!btn || btn.disabled) return;
+    var val = btn.getAttribute('data-page');
+    if (val === 'prev') currentPage--;
+    else if (val === 'next') currentPage++;
+    else currentPage = parseInt(val);
+    renderTable();
+  });
+
+  // ==================== AUTO-LOAD ON PAGE OPEN ====================
+  loadData();
+
+})();
+</script>
+
+<!--
+╔══════════════════════════════════════════════════════════════╗
+║              GOOGLE APPS SCRIPT SETUP INSTRUCTIONS          ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  To enable the WRITE-BACK (reorder logging), follow these:  ║
+║                                                              ║
+║  1. Open your Google Sheet                                   ║
+║  2. Go to Extensions → Apps Script                           ║
+║  3. Delete any existing code and paste this:                 ║
+║                                                              ║
+║  function doPost(e) {                                        ║
+║    var sheet = SpreadsheetApp.getActiveSpreadsheet()          ║
+║      .getSheetByName('reorder_log');                          ║
+║    var data = JSON.parse(e.postData.contents);               ║
+║    sheet.appendRow([                                          ║
+║      data.timestamp,                                          ║
+║      data.product_id,                                         ║
+║      data.product_name,                                       ║
+║      data.category,                                           ║
+║      '',                                                      ║
+║      '',                                                      ║
+║      data.current_stock,                                      ║
+║      data.reorder_point,                                      ║
+║      data.suggested_qty,                                      ║
+║      data.status                                              ║
+║    ]);                                                        ║
+║    return ContentService                                      ║
+║      .createTextOutput(JSON.stringify({result: 'ok'}))       ║
+║      .setMimeType(ContentService.MimeType.JSON);             ║
+║  }                                                            ║
+║                                                              ║
+║  4. Click Deploy → New deployment                             ║
+║  5. Select type: "Web app"                                    ║
+║  6. Set "Execute as" → Me                                     ║
+║  7. Set "Who has access" → Anyone                             ║
+║  8. Click Deploy and copy the Web App URL                     ║
+║  9. Paste the URL into CONFIG.APPS_SCRIPT_URL above          ║
+║     (line that says APPS_SCRIPT_URL: '')                     ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+-->
+
+</body>
+</html>
