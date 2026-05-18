@@ -202,6 +202,7 @@ body {
 .status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
 .status-pill.ok { background: var(--green-100); color: var(--green-600); }
 .status-pill.reorder { background: var(--red-100); color: var(--red-600); }
+.status-pill.reordered { background: var(--blue-500); color: white; }
 .btn-action {
   font-family: inherit; font-size: 12px; font-weight: 600;
   padding: 6px 12px; border-radius: 8px; border: none;
@@ -209,7 +210,7 @@ body {
 }
 .btn-action.update { background: var(--orange-100); color: var(--orange-600); }
 .btn-action.reorder-btn { background: var(--red-100); color: var(--red-600); }
-.btn-action.reorder-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-action.reorder-btn:disabled, .btn-action.ordered-btn { background: var(--green-100); color: var(--green-600); cursor: default; opacity: 0.8; }
 .pagination { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border-light); }
 .page-btn {
   width: 32px; height: 32px; border-radius: 8px;
@@ -296,10 +297,9 @@ body {
   'use strict';
 
   // ========== CONFIGURATION ==========
-  // Replace SHEET_ID with your Google Spreadsheet ID (must be published to web)
   const CONFIG = {
-    SHEET_ID: '1-RdujYHUyYfo_ttc0nknsij9JWK4KSzzu1gPgmBHacc',   // <-- YOUR SHEET ID
-    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbzxI_DXnyLjlyoigPdpluZ0EvmBOMDba4RhiXSXdnElaVg2s_GTzv05Av-NIxaxaqOF/exec' // optional for write-back
+    SHEET_ID: '1-RdujYHUyYfo_ttc0nknsij9JWK4KSzzu1gPgmBHacc',
+    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwSrwaxKsOQPFxFxldhPSdKjnEqcg2GDPsONpKyRbn2CrxsQv80mAlFSkpVs25O10y9/exec'
   };
 
   let allProducts = [];
@@ -328,23 +328,17 @@ body {
     else if (state === 'live') ts.textContent = `Updated ${new Date().toLocaleTimeString()}`;
   }
 
-  // ========== IMPROVED GOOGLE SHEETS FETCH (handles gviz & public sheets) ==========
+  // ========== FETCH GOOGLE SHEETS ==========
   async function fetchSheet(sheetName) {
-    // Build gviz URL (requires sheet to be published to web OR shared as "Anyone with link can view")
     const url = `https://docs.google.com/spreadsheets/d/${CONFIG.SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;
     const response = await fetch(url);
     if (!response.ok) throw new Error(`HTTP ${response.status}: Failed to fetch sheet. Check if sheet is published.`);
     let text = await response.text();
-    
-    // Remove Google's security prefix: )]}' or /*O_o*/
     if (text.startsWith(')]}\'')) text = text.substring(4);
     if (text.startsWith('/*O_o*/')) text = text.substring(7);
-    
-    // Extract JSON inside google.visualization.Query.setResponse(...)
     const match = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?$/);
     if (!match || !match[1]) throw new Error('Invalid gviz response format. Verify sheet name and publish status.');
-    let jsonStr = match[1];
-    let parsed = JSON.parse(jsonStr);
+    let parsed = JSON.parse(match[1]);
     if (parsed.status === 'error') throw new Error(parsed.errors?.[0]?.message || 'Sheet query error');
     const cols = parsed.table.cols.map(c => c.label || c.id);
     const rows = parsed.table.rows.map(row => {
@@ -358,7 +352,7 @@ body {
     return rows;
   }
 
-  // ========== LOAD & PROCESS ==========
+  // ========== LOAD DATA ==========
   async function loadData() {
     const btn = document.getElementById('btnRefresh');
     btn.classList.add('loading');
@@ -374,7 +368,6 @@ body {
       let errorMsg = err.message.includes('HTTP') ? 'Publish error: ensure your sheet is published (File → Share → Publish to web).' : err.message;
       setStatus('error', `ERROR — ${errorMsg.substring(0, 80)}`);
       showToast(`Failed to load data: ${errorMsg}. Check sheet publication & "product_master" tab name.`, 'error');
-      // Show error in table
       document.getElementById('productTableBody').innerHTML = `<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--red-600);">⚠️ Cannot load data. ${errorMsg}<br><br>👉 Make sure the Google Sheet is published to web (File → Share → Publish to web → Entire Document) AND tab name is exactly "product_master".</td></tr>`;
       document.getElementById('lowStockGrid').innerHTML = `<div class="stock-item"><div class="stock-name">⚠️ Publication required</div></div>`;
     } finally {
@@ -382,6 +375,7 @@ body {
     }
   }
 
+  // ========== PROCESS DATA (reads reorder_status column) ==========
   function processProductData(pmRows) {
     const productMap = new Map();
     const categoriesSet = new Set();
@@ -393,7 +387,13 @@ body {
       if (!pid) continue;
       if (r.category) categoriesSet.add(r.category);
       if (r.country) countriesSet.add(r.country);
-      if (r.reorder_alert === 'REORDER') reorderAlertCount++;
+      
+      // Read new reorder_status column (default empty)
+      const reorderStatus = r.reorder_status || '';
+      const reorderAlert = r.reorder_alert || '';
+      // Needs reorder only if alert is REORDER and status is not ORDERED
+      const needsReorder = (reorderAlert === 'REORDER') && (reorderStatus !== 'ORDERED');
+      if (needsReorder) reorderAlertCount++;
 
       if (!productMap.has(pid)) {
         productMap.set(pid, {
@@ -406,7 +406,9 @@ body {
           total_reorder_point: 0,
           total_sold: 0,
           shops: [],
-          has_reorder: false
+          has_reorder: false,
+          reorder_status: reorderStatus,
+          reorder_alert: reorderAlert
         });
       }
       const p = productMap.get(pid);
@@ -415,8 +417,11 @@ body {
       p.total_safety += parseFloat(r.safety_stock_qty) || 0;
       p.total_reorder_point += parseFloat(r.reorder_point) || 0;
       p.total_sold += parseFloat(r.total_units_sold) || 0;
-      if (r.reorder_alert === 'REORDER') p.has_reorder = true;
-      p.shops.push({ shop: r.shop_id, country: r.country, stock, alert: r.reorder_alert });
+      // Update the product-level flags (use latest row's values)
+      p.reorder_status = reorderStatus;
+      p.reorder_alert = reorderAlert;
+      p.has_reorder = needsReorder;
+      p.shops.push({ shop: r.shop_id, country: r.country, stock, alert: reorderAlert });
     }
 
     allProducts = Array.from(productMap.values());
@@ -425,7 +430,6 @@ body {
     const lowStockCount = allProducts.filter(p => p.has_reorder).length;
     const healthyCount = totalProducts - lowStockCount;
 
-    // Update KPI
     if (el('total_products')) el('total_products').innerText = totalProducts;
     if (el('low_stock_count')) el('low_stock_count').innerText = lowStockCount;
     if (el('healthy_stock')) el('healthy_stock').innerText = healthyCount;
@@ -442,9 +446,12 @@ body {
     cntFilter.innerHTML = '<option value="">All Countries</option>';
     Array.from(countriesSet).sort().forEach(c => { cntFilter.innerHTML += `<option value="${c}" ${c === savedCnt ? 'selected' : ''}>${c}</option>`; });
 
-    // Build low stock grid (shop-level reorder items)
-    const shopLowItems = pmRows.filter(r => r.reorder_alert === 'REORDER')
-      .map(r => ({ name: r.product_name, stock: parseFloat(r.current_stock) || 0, shop: r.shop_id, country: r.country }))
+    // Build low stock grid (only items that still need reorder, not already ordered)
+    const shopLowItems = pmRows.filter(r => {
+      const alert = r.reorder_alert;
+      const status = r.reorder_status || '';
+      return alert === 'REORDER' && status !== 'ORDERED';
+    }).map(r => ({ name: r.product_name, stock: parseFloat(r.current_stock) || 0, shop: r.shop_id, country: r.country }))
       .sort((a,b) => a.stock - b.stock).slice(0,5);
     
     const lowGrid = document.getElementById('lowStockGrid');
@@ -478,6 +485,7 @@ body {
     });
   }
 
+  // ========== RENDER TABLE (with reordered status support) ==========
   function renderTable() {
     const filtered = getFilteredProducts();
     const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -490,9 +498,21 @@ body {
       tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;">No products match filters</td></tr>';
     } else {
       tbody.innerHTML = pageItems.map(p => {
-        const statusClass = p.has_reorder ? 'reorder' : 'ok';
-        const statusLabel = p.has_reorder ? 'Reorder needed' : 'OK';
-        const reorderBtn = p.has_reorder ? `<button class="btn-action reorder-btn" data-pid="${p.id}" data-pname="${escapeHtml(p.name)}" data-cat="${escapeHtml(p.category)}" data-reorderpt="${Math.round(p.total_reorder_point)}" data-stock="${Math.round(p.total_stock)}">Reorder</button>` : '';
+        // Determine status label and button based on reorder_status
+        let statusClass = 'ok';
+        let statusLabel = 'OK';
+        let reorderBtn = '';
+        
+        if (p.reorder_status === 'ORDERED') {
+          statusClass = 'reordered';
+          statusLabel = 'Reordered';
+          reorderBtn = '<button class="btn-action ordered-btn" disabled>✓ Ordered</button>';
+        } else if (p.has_reorder) {
+          statusClass = 'reorder';
+          statusLabel = 'Reorder needed';
+          reorderBtn = `<button class="btn-action reorder-btn" data-pid="${p.id}" data-pname="${escapeHtml(p.name)}" data-cat="${escapeHtml(p.category)}" data-reorderpt="${Math.round(p.total_reorder_point)}" data-stock="${Math.round(p.total_stock)}">Reorder</button>`;
+        }
+        
         return `<tr>
           <td><div class="product-cell"><div class="product-icon-sm"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg></div><span class="product-name-text">${escapeHtml(p.name)}</span></div></td>
           <td class="td-sku">${escapeHtml(p.id)}</td>
@@ -506,7 +526,7 @@ body {
       }).join('');
     }
 
-    // attach reorder event listeners after render
+    // Attach reorder event listeners
     document.querySelectorAll('.reorder-btn').forEach(btn => {
       btn.removeEventListener('click', reorderHandler);
       btn.addEventListener('click', reorderHandler);
@@ -526,8 +546,8 @@ body {
 
   function escapeHtml(str) { if (!str) return ''; return str.replace(/[&<>]/g, function(m){ if(m === '&') return '&amp;'; if(m === '<') return '&lt;'; if(m === '>') return '&gt;'; return m;}); }
 
-  // Reorder logic with form-urlencoded (no CORS issues)
-async function reorderHandler(e) {
+  // ========== REORDER HANDLER (updates local product state + calls Apps Script) ==========
+  async function reorderHandler(e) {
     const btn = e.currentTarget;
     const pid = btn.getAttribute('data-pid');
     const pname = btn.getAttribute('data-pname');
@@ -536,49 +556,53 @@ async function reorderHandler(e) {
     const currentStock = parseInt(btn.getAttribute('data-stock')) || 0;
     
     if (!CONFIG.APPS_SCRIPT_URL) {
-        showToast('Reorder URL not set. Please configure APPS_SCRIPT_URL.', 'error');
-        return;
+      showToast('Reorder URL not set. Please configure APPS_SCRIPT_URL.', 'error');
+      return;
     }
     
     btn.disabled = true;
     btn.textContent = 'Sending…';
     
     const suggestedQty = Math.max(reorderPoint * 2 - currentStock, reorderPoint);
-    
-    // Build URL-encoded body
     const payload = new URLSearchParams({
-        timestamp: new Date().toISOString(),
-        product_id: pid,
-        product_name: pname,
-        category: category,
-        current_stock: currentStock,
-        reorder_point: reorderPoint,
-        suggested_qty: Math.round(suggestedQty),
-        status: 'REQUESTED'
+      timestamp: new Date().toISOString(),
+      product_id: pid,
+      product_name: pname,
+      category: category,
+      current_stock: currentStock,
+      reorder_point: reorderPoint,
+      suggested_qty: Math.round(suggestedQty),
+      status: 'REQUESTED'
     });
     
     try {
-        await fetch(CONFIG.APPS_SCRIPT_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: payload.toString()
-        });
-        // With no-cors we can't read the response, but the request was sent.
-        showToast(`✅ Reorder request sent for ${pname}`, 'success');
-        btn.textContent = '✓ Sent';
-        btn.style.background = 'var(--green-100)';
-        btn.style.color = 'var(--green-600)';
-        btn.disabled = true; // keep disabled
+      await fetch(CONFIG.APPS_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload.toString()
+      });
+      
+      // ----- Update local product data (so UI changes immediately) -----
+      const product = allProducts.find(p => p.id === pid);
+      if (product) {
+        product.reorder_status = 'ORDERED';
+        product.has_reorder = false;   // no longer needs reorder
+      }
+      // Re-render table to reflect new status
+      renderTable();
+      
+      showToast(`✅ Reorder request sent for ${pname}`, 'success');
+      // The button is recreated by renderTable, so no need to modify btn directly
     } catch (err) {
-        console.error('Reorder error:', err);
-        showToast(`❌ Reorder failed: ${err.message}`, 'error');
-        btn.disabled = false;
-        btn.textContent = 'Reorder';
+      console.error('Reorder error:', err);
+      showToast(`❌ Reorder failed: ${err.message}`, 'error');
+      // Re-enable the original button (but it may have been replaced; safer to re-render)
+      renderTable();
     }
-}
+  }
 
-  // Filters and pagination events
+  // ========== EVENT LISTENERS ==========
   document.getElementById('categoryFilter').addEventListener('change', e => { activeCategory = e.target.value; currentPage = 1; renderTable(); });
   document.getElementById('countryFilter').addEventListener('change', e => { activeCountry = e.target.value; currentPage = 1; renderTable(); });
   document.getElementById('searchInput').addEventListener('input', e => { searchQuery = e.target.value; currentPage = 1; renderTable(); });
